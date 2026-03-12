@@ -7,9 +7,7 @@ MOVIES_PATH = DATA_PATH / 'movies.json'
 STOPWORDS_PATH = DATA_PATH/ 'stopsword.txt'
 
 CACHE_PATH = DATA_PATH/ 'cache'
-
-
-
+Counter = DATA_PATH/'Counter'
 
 
 
