@@ -1,4 +1,4 @@
-from lib.search_utils import (BM25_K1,load_movies, load_stopwords ,CACHE_PATH, CACHE_DIR, Counter)
+from lib.search_utils import (BM25_K1,BM25_B, load_movies, load_stopwords ,CACHE_PATH, CACHE_DIR, Counter)
 import string
 from nltk.stem import PorterStemmer
 from collections import defaultdict
@@ -30,6 +30,15 @@ class InvertedIndex:
         self.doc_lengths[doc_id] = len(tokens)
 
 
+    def _get_avg_doc_length(self):
+        lengths = self.doc_lengths.values()
+        if len(lengths) == 0:
+            return 0.0
+        ttl = 0
+        for l in lengths:
+            ttl += l
+            return ttl / len(lengths)
+        
 
         
             
@@ -54,9 +63,14 @@ class InvertedIndex:
             raise ValueError("Can only have 1 tokens")
         return self.term_frequencies[doc_id][token[0]]
     
-    def get_bm25_tf(self, doc_id, term, k1 = BM25_K1):
+    def get_bm25_tf(self, doc_id, term, k1 = BM25_K1, b=BM25_B):
         tf = self.get_tf(doc_id, term)
-        return (tf * (k1 + 1))/(tf+k1)
+        doc_length = self.doc_lengths(doc_id)
+        avg_doc_length = self._get_avg_doc_length[doc_id]
+        if avg_doc_length>0:
+            length_norm = 1
+
+        return (tf * (k1 + 1))/(tf+k1 * length_norm)
     
 
 
@@ -77,22 +91,54 @@ class InvertedIndex:
         doc_count = len(self.docamp)
         term_doc_count = len(self.index[token])
         return math.log((doc_count - term_doc_count + 0.5)/(term_doc_count+0.5)+1)
-    
 
+     
 
-
-
+    def bm25_search(query):
+        inverted_index = InvertedIndex()
+        inverted_index.load()
+        return inverted_index.bm25_search(query)
 
     def get_tfidf(self,doc_id,term):
         tf = self.get_tf(doc_id, term)
         idf = self.get_idf(term)
         return tf*idf
      
-           
+    def get_bm25(self,doc_id,term):
+        tf = self.get_bm25_tf(doc_id, term)
+        idf = self.get_bm25_idf(term)
+        return tf*idf
+    
+    def bm25_search(self, query, limit):
+        query_tokens = tokenize_text(query)
+        scores={}
+        for doc_id in self.docamp:
+            score = 0
+            for token in query_tokens:
+                score += self.get_bm25(doc_id, token)
+            scores[doc_id] = score 
+
+            results = sorted_scores[: limit]
+            format_rsults = []
+            for doc_id, score in results:
+                title = self.docamp[doc_id]['title']
+                format_rsults.append(
+                    {
+                        "doc_id": doc_id,
+                        "title": title,
+                        "score": score
+                    }
+                )
+
+            return format_rsults    
+
+
+        def _key(x): return x[1]
+        sorted_scores = sorted(scores.items(),
+                               key=lambda x: x[1],
+                               reverse= True)
     
 
-    
-    
     def build(self):
         movies = load_movies()
         for movie in movies:
@@ -113,9 +159,6 @@ class InvertedIndex:
             pickle.dump(self.term_frequencies, f)
         with open(self.doc_lengths_path, 'wb') as f:
             pickle.dump(self.doc_lengths, f)
-
-
-         
 
 
 
@@ -159,10 +202,6 @@ def build_command():
 
     # docs = idx.get_documents("merida")
     # print(f"First document for token 'merida' ={docs[0]}")
-
-        
-
-
 
 def clean_text(text):
     text= text.lower()
